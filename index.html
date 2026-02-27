@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BBB26: Jogo do Confinamento</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #13061f;
+      --panel: #211033;
+      --accent: #ff4da6;
+      --accent-2: #64f4ff;
+      --text: #f8ecff;
+      --muted: #baa4cc;
+      --danger: #ff7474;
+      --success: #97ff9b;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background:
+        radial-gradient(circle at 20% 10%, #40205f 0%, transparent 40%),
+        radial-gradient(circle at 80% 0%, #1a5d66 0%, transparent 30%),
+        var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 980px;
+      background: color-mix(in srgb, var(--panel) 92%, black 8%);
+      border: 1px solid #43225f;
+      border-radius: 18px;
+      padding: 1.3rem;
+      box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+    }
+
+    h1 {
+      margin: 0 0 0.4rem;
+      font-size: clamp(1.4rem, 3vw, 2rem);
+    }
+
+    .subtitle {
+      margin-top: 0;
+      color: var(--muted);
+    }
+
+    .stage {
+      display: none;
+      gap: 1rem;
+    }
+
+    .stage.active {
+      display: grid;
+    }
+
+    .participants {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 0.8rem;
+      margin-top: 0.7rem;
+    }
+
+    button {
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      background: #381d58;
+      color: var(--text);
+      font-weight: 700;
+      padding: 0.8rem;
+      transition: transform 0.15s ease, background 0.15s ease;
+    }
+
+    button:hover { transform: translateY(-2px); background: #4a2a74; }
+
+    button.primary {
+      background: linear-gradient(120deg, var(--accent), #ff7d7d);
+      color: #220322;
+    }
+
+    .panel {
+      border: 1px solid #4a2a70;
+      border-radius: 12px;
+      padding: 0.9rem;
+      background: rgba(18, 10, 30, 0.65);
+    }
+
+    .hud {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+      gap: 0.7rem;
+      margin-bottom: 0.8rem;
+    }
+
+    .metric {
+      background: rgba(35, 20, 50, 0.7);
+      border: 1px solid #50306d;
+      border-radius: 10px;
+      padding: 0.6rem;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 1.2rem;
+      color: var(--accent-2);
+    }
+
+    .log {
+      min-height: 90px;
+      white-space: pre-line;
+      color: #e9d9f4;
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 0.7rem;
+      margin-top: 0.8rem;
+    }
+
+    .tag {
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    .status {
+      margin-top: 0.8rem;
+      font-weight: 700;
+    }
+
+    .danger { color: var(--danger); }
+    .success { color: var(--success); }
+
+    .final {
+      text-align: center;
+      padding: 1.2rem;
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <h1>🎥 BBB26: Rumo ao Prêmio</h1>
+    <p class="subtitle">Escolha um participante e tente sobreviver às 8 semanas de jogo.</p>
+
+    <section id="select-stage" class="stage active">
+      <div class="panel">
+        <h2>Quem você quer ser na casa?</h2>
+        <p class="tag">Cada participante começa com uma vantagem diferente.</p>
+        <div id="participants" class="participants"></div>
+      </div>
+    </section>
+
+    <section id="game-stage" class="stage">
+      <div class="hud">
+        <div class="metric">Semana<strong id="week">1</strong></div>
+        <div class="metric">Popularidade<strong id="pop">50</strong></div>
+        <div class="metric">Energia<strong id="energy">50</strong></div>
+        <div class="metric">Estratégia<strong id="strategy">50</strong></div>
+      </div>
+
+      <div class="panel">
+        <h3 id="player-name">Jogador</h3>
+        <p class="tag">Escolha uma ação por semana para influenciar o público.</p>
+        <div id="log" class="log">O jogo vai começar!</div>
+        <div class="actions">
+          <button data-action="alliance">🤝 Fechar alianças</button>
+          <button data-action="party">🎉 Brilhar na festa</button>
+          <button data-action="honest">🗣️ Jogo franco no ao vivo</button>
+          <button data-action="rest">🛏️ Descansar e observar</button>
+        </div>
+        <p id="status" class="status"></p>
+      </div>
+    </section>
+
+    <section id="end-stage" class="stage">
+      <div class="panel final">
+        <h2 id="ending-title"></h2>
+        <p id="ending-text"></p>
+        <button class="primary" id="restart">Jogar de novo</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const cast = [
+      { name: "Aline", bonus: { pop: 12, energy: 0, strategy: 5 }, bio: "carismática e espontânea" },
+      { name: "Davi", bonus: { pop: 0, energy: 12, strategy: 4 }, bio: "atleta competitivo" },
+      { name: "Luna", bonus: { pop: 5, energy: 2, strategy: 12 }, bio: "estrategista nata" },
+      { name: "Ravi", bonus: { pop: 8, energy: 8, strategy: 0 }, bio: "bom de prova e social" },
+      { name: "Yasmin", bonus: { pop: 10, energy: 3, strategy: 6 }, bio: "influencer comunicativa" }
+    ];
+
+    const state = {
+      selected: null,
+      week: 1,
+      pop: 50,
+      energy: 50,
+      strategy: 50,
+      done: false
+    };
+
+    const el = {
+      selectStage: document.getElementById("select-stage"),
+      gameStage: document.getElementById("game-stage"),
+      endStage: document.getElementById("end-stage"),
+      participants: document.getElementById("participants"),
+      week: document.getElementById("week"),
+      pop: document.getElementById("pop"),
+      energy: document.getElementById("energy"),
+      strategy: document.getElementById("strategy"),
+      name: document.getElementById("player-name"),
+      log: document.getElementById("log"),
+      status: document.getElementById("status"),
+      endingTitle: document.getElementById("ending-title"),
+      endingText: document.getElementById("ending-text"),
+      restart: document.getElementById("restart")
+    };
+
+    function clamp(value) {
+      return Math.max(0, Math.min(100, value));
+    }
+
+    function renderSelect() {
+      el.participants.innerHTML = "";
+      cast.forEach((person) => {
+        const card = document.createElement("button");
+        card.innerHTML = `${person.name}<br><span class="tag">${person.bio}</span>`;
+        card.addEventListener("click", () => startGame(person));
+        el.participants.appendChild(card);
+      });
+    }
+
+    function startGame(person) {
+      state.selected = person;
+      state.week = 1;
+      state.pop = 50 + person.bonus.pop;
+      state.energy = 50 + person.bonus.energy;
+      state.strategy = 50 + person.bonus.strategy;
+      state.done = false;
+
+      el.selectStage.classList.remove("active");
+      el.endStage.classList.remove("active");
+      el.gameStage.classList.add("active");
+      el.name.textContent = `Você é ${person.name}`;
+      el.log.textContent = `Você entrou na casa como ${person.bio}. Jogue bem!`;
+      el.status.textContent = "";
+      renderHud();
+    }
+
+    function renderHud() {
+      el.week.textContent = state.week;
+      el.pop.textContent = Math.round(state.pop);
+      el.energy.textContent = Math.round(state.energy);
+      el.strategy.textContent = Math.round(state.strategy);
+    }
+
+    function randomBetween(min, max) {
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    function playTurn(action) {
+      if (state.done) return;
+
+      const tension = randomBetween(-8, 8);
+      let msg = "";
+
+      if (action === "alliance") {
+        state.strategy += 10 + randomBetween(-3, 4);
+        state.pop += 4 + tension;
+        state.energy -= 5;
+        msg = "Você articulou votos e criou uma aliança poderosa.";
+      }
+
+      if (action === "party") {
+        state.pop += 12 + tension;
+        state.energy -= 10;
+        state.strategy -= 2;
+        msg = "Você dominou a festa e viralizou nas redes.";
+      }
+
+      if (action === "honest") {
+        state.pop += randomBetween(-10, 18);
+        state.strategy += 5;
+        state.energy -= 7;
+        msg = "Você falou tudo no ao vivo. O público ficou dividido.";
+      }
+
+      if (action === "rest") {
+        state.energy += 16;
+        state.pop -= randomBetween(1, 8);
+        state.strategy += 2;
+        msg = "Você respirou fundo e observou melhor o jogo.";
+      }
+
+      // eventos semanais
+      const eventRoll = randomBetween(1, 100);
+      if (eventRoll <= 25) {
+        state.pop += 8;
+        msg += "\n⭐ Você ganhou destaque no VT e cresceu com o público.";
+      } else if (eventRoll >= 85) {
+        state.pop -= 10;
+        msg += "\n🔥 Um conflito ao vivo te prejudicou nesta semana.";
+      }
+
+      state.pop = clamp(state.pop);
+      state.energy = clamp(state.energy);
+      state.strategy = clamp(state.strategy);
+
+      const risk = 100 - (state.pop * 0.6 + state.strategy * 0.3 + state.energy * 0.1);
+      const paredaoChance = Math.max(10, Math.min(85, Math.round(risk)));
+      const paredaoRoll = randomBetween(1, 100);
+
+      let statusClass = "";
+      if (paredaoRoll < paredaoChance) {
+        state.pop -= randomBetween(4, 12);
+        msg += `\n🚨 Você foi para o paredão (risco ${paredaoChance}%).`;
+        if (state.pop < 25 && randomBetween(1, 100) > state.strategy) {
+          finish(false, "Você foi eliminado no paredão.");
+          return;
+        }
+        statusClass = "danger";
+        el.status.textContent = "Semana tensa: você escapou por pouco.";
+      } else {
+        state.pop += 3;
+        statusClass = "success";
+        el.status.textContent = "Você ficou fora do paredão nesta semana.";
+      }
+
+      el.status.className = `status ${statusClass}`;
+      state.week += 1;
+      el.log.textContent = msg;
+      renderHud();
+
+      if (state.week > 8) {
+        const score = state.pop * 0.55 + state.strategy * 0.3 + state.energy * 0.15;
+        finish(score >= 58, score >= 75 ? "Você foi campeão com folga!" : "Você chegou à final e venceu no detalhe!");
+      }
+
+      if (state.energy <= 5) {
+        finish(false, "Você pediu para sair por exaustão mental.");
+      }
+    }
+
+    function finish(won, reason) {
+      state.done = true;
+      el.gameStage.classList.remove("active");
+      el.endStage.classList.add("active");
+
+      if (won) {
+        el.endingTitle.textContent = "🏆 Campeão do BBB26!";
+        el.endingText.textContent = `${reason} O público aprovou sua trajetória.`;
+      } else {
+        el.endingTitle.textContent = "Fim de jogo";
+        el.endingText.textContent = `${reason} Tente outra estratégia na próxima!`;
+      }
+    }
+
+    document.querySelectorAll("[data-action]").forEach((btn) => {
+      btn.addEventListener("click", () => playTurn(btn.dataset.action));
+    });
+
+    el.restart.addEventListener("click", () => {
+      el.endStage.classList.remove("active");
+      el.selectStage.classList.add("active");
+    });
+
+    renderSelect();
+  </script>
+</body>
+</html>
